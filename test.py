@@ -22,8 +22,8 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 def parse_args():
     parser = argparse.ArgumentParser(description="PGA-UNet Image-Level Evaluation Pipeline")
     
-    parser.add_argument("--Checkpoint", type=str, required=True
-                        default="checkpoints/pga_unet_512.pth", help="Path to trained model checkpoint (.pth)")
+    parser.add_argument("--checkpoint", type=str, required=True,
+                        default="checkpoints/pga_unet_512_best.pth", help="Path to trained model checkpoint (.pth)")
     parser.add_argument("--dataset_path", type=str, required=True, help="Path to dataset root folder")
     parser.add_argument("--dataset_name", type=str, default="BTXRD", help="Dataset name")
     parser.add_argument("--img_size", type=int, default=512, help="Input image resolution")
@@ -63,7 +63,7 @@ def main():
 
     logger.info("=" * 60)
     logger.info(f"🚀 Bắt đầu đánh giá mô hình PGA-UNet (Cấp độ ảnh - Image Level)")
-    logger.info(f"📂 Checkpoint: {args.Checkpoint}")
+    logger.info(f"📂 Checkpoint: {args.checkpoint}")
     logger.info(f"📂 Dataset Path: {args.dataset_path}")
     logger.info(f"🎯 Prompt Mode: {args.prompt_mode} | Threshold: {args.threshold}")
     logger.info("=" * 60)
@@ -81,7 +81,7 @@ def main():
 
     # 2. Khởi tạo & Tải Trọng số Mô hình
     model = PGA_UNet(in_channels=1, n_classes=1, use_encoder_prompt=True).to(DEVICE)
-    checkpoint = torch.load(args.weights, map_location=DEVICE)
+    checkpoint = torch.load(args.checkpoint, map_location=DEVICE)
     
     # Hỗ trợ tải checkpoint dù lưu dưới dạng dict hay state_dict trực tiếp
     if isinstance(checkpoint, dict) and 'model_state_dict' in checkpoint:
