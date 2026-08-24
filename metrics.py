@@ -32,7 +32,7 @@ def calculate_batch_metrics(pred_logits, target, smooth=1e-5):
     return dice.sum().item(), iou.sum().item(), precision.sum().item(), recall.sum().item()
 
 
-def calculate_cbl(pred_logits, target, smooth=1e-6):
+def calculate_cbl(pred_logits, target, smooth=1e-5):
     """
     Tính Center-Based Localization (CBL) score được tối ưu hóa trên GPU.
     Trả về: (tổng cbl_score, số mẫu hợp lệ trong batch)
