@@ -121,10 +121,6 @@ def main():
         # 2. Validate Phase
         model.eval()
         val_loss = 0.0
-        val_dice = 0.0
-        val_iou  = 0.0
-        val_pre  = 0.0
-        val_rec  = 0.0
 
         val_image_groups = defaultdict(lambda: {'preds': [], 'gts': []})
 
@@ -136,6 +132,10 @@ def main():
 
                 preds_logits = model(images, prompts)
                 preds_prob = torch.sigmoid(preds_logits)
+
+                loss  = criterion_bce(preds_logits, masks) + dice_loss(preds_logits, masks)
+                val_loss += loss.item()
+                val_loss_avg = val_loss / len(val_loader)
 
                 batch_sz = images.size(0)
 
@@ -168,7 +168,7 @@ def main():
 
         log_str = (f"Epoch {epoch+1:03d}/{args.epochs} | "
                    f"Train_loss: {train_loss_avg:.4f} | "
-                   f"Val_loss: {val_results['loss']:.4f} | "
+                   f"Val_loss: {val_loss_avg:.4f} | "
                    f"Dice: {val_results['dice']:.4f} | "
                    f"IoU: {val_results['iou']:.4f} | "
                    f"Prec: {val_results['precision']:.4f} | "
