@@ -15,7 +15,7 @@ from models.networks.pga_unet_2D import PGA_UNet
 from metrics import dice_loss, calculate_batch_metrics, calculate_cbl
 
 
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 # =========================================================
@@ -33,7 +33,8 @@ def parse_args():
     parser.add_argument("--img_size", type=int, default=512, help="Input image resolution")
 
     # Mode & Model Configuration
-    parser.add_argument("--train_prompt_mode", type=str, default="zoom_out", choices=["zoom_out", "shift"],
+    parser.add_argument("--model_name", type=str, default="pga", help="Name of model to use")
+    parser.add_argument("--train_prompt_mode", type=str, default="random", choices=["zoom_out", "shift"],
                         help="Prompt mode for training")
     parser.add_argument("--dataset_path", type=str, default="", help="Path of the dataset")    
     parser.add_argument("--dataset_name", type=str, default="BTXRD", help="Name of the dataset to use")
@@ -86,7 +87,7 @@ def main():
 
     # ── Model ────────────────────────────────────────────────────────
     model = PGA_UNet(in_channels=1, n_classes=1,
-                        use_encoder_prompt=True).to(DEVICE)
+                        use_encoder_prompt=True).to(device)
     criterion_bce = nn.BCEWithLogitsLoss()
     optimizer     = optim.AdamW(model.parameters(), lr=args.lr, weight_decay=1e-4)
     scheduler     = optim.lr_scheduler.ReduceLROnPlateau(
@@ -105,7 +106,7 @@ def main():
         train_loop = tqdm(train_loader, desc=f"Epoch {epoch+1}/{args.epochs} [Train]")
 
         for images, masks, prompts in train_loop:
-            images, masks, prompts = (images.to(DEVICE), masks.to(DEVICE), prompts.to(DEVICE))
+            images, masks, prompts = (images.to(device), masks.to(device), prompts.to(device))
             preds = model(images, prompts)
             loss  = criterion_bce(preds, masks) + dice_loss(preds, masks)
             optimizer.zero_grad()
@@ -129,7 +130,7 @@ def main():
 
         with torch.no_grad():
             for images, masks, prompts in val_loop:
-                images, masks, prompts = images.to(DEVICE), masks.to(DEVICE), prompts.to(DEVICE)
+                images, masks, prompts = images.to(device), masks.to(device), prompts.to(device)
 
                 # Forward pass
                 preds = model(images, prompts)

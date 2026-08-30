@@ -30,11 +30,6 @@ class PromptSegmentationDataset(Dataset):
         self.prompt_mode = prompt_mode
         self.zoom_ratio  = zoom_ratio
         self.shift_ratio = shift_ratio
-        # Fixed regardless of img_size: applied to heatmap coordinates in
-        # original-image pixel space, before the resize-and-pad step. Scaling
-        # it with img_size would change the effective blur relative to the
-        # final img_size x img_size frame the network sees, so it stays
-        # constant across resolutions instead.
         self.prompt_kernel = 31
 
         self.all_samples = []
@@ -55,16 +50,14 @@ class PromptSegmentationDataset(Dataset):
         return len(self.all_samples)
 
     # ── Prompt helpers ────────────────────────────────────────────────
-
-    def _zoom_out_bbox(self, x_min, x_max, y_min, y_max, orig_h, orig_w):
-        """Expand the prompt box outside the GT.
-        Train: random total scale and random asymmetric expansion.
-        Test: fixed total scale with a fixed asymmetric expansion.
-        """
-        gt_w, gt_h = x_max - x_min, y_max - y_min
-        lo, hi = self.zoom_ratio
-
-        if self.is_train:
+    def _random_zoom_out_bbox(self, x_min, x_max, y_min, y_max, orig_h, orig_w):
+            """Expand the prompt box outside the GT.
+            Train: random total scale and random asymmetric expansion.
+            Test: fixed total scale with a fixed asymmetric expansion.
+            """
+            gt_w, gt_h = x_max - x_min, y_max - y_min
+            lo, hi = self.zoom_ratio
+    
             # Randomly determine the final prompt size relative to the GT.
             scale_w = random.uniform(lo, hi)
             scale_h = random.uniform(lo, hi)
@@ -82,71 +75,74 @@ class PromptSegmentationDataset(Dataset):
 
             top_expand = expand_h * top_ratio
             bottom_expand = expand_h - top_expand
+    
+            bx_min = max(0, x_min - left_expand)
+            bx_max = min(orig_w, x_max + right_expand)
+    
+            by_min = max(0, y_min - top_expand)
+            by_max = min(orig_h, y_max + bottom_expand)
+    
+            return bx_min, bx_max, by_min, by_max
+    
+    def _zoom_out_bbox(self, x_min, x_max, y_min, y_max, orig_h, orig_w):
+        cx = (x_min + x_max) / 2.0
+        cy = (y_min + y_max) / 2.0
 
+        if self.is_train:
+            self.ratio = random.uniform(self.zoom_ratio[0], self.zoom_ratio[1])
         else:
-            # Fixed 2.5x prompt size during testing.
-            scale_w = scale_h = 2.5
+            self.ratio = 2.5
 
-            expand_w = gt_w * (scale_w - 1.0)
-            expand_h = gt_h * (scale_h - 1.0)
-
-            # Fixed asymmetric placement for reproducible testing.
-            left_expand = expand_w * 0.5
-            right_expand = expand_w - left_expand
-
-            top_expand = expand_h * 0.5
-            bottom_expand = expand_h - top_expand
-
-        bx_min = max(0, x_min - left_expand)
-        bx_max = min(orig_w, x_max + right_expand)
-
-        by_min = max(0, y_min - top_expand)
-        by_max = min(orig_h, y_max + bottom_expand)
-
+        half_w = (x_max - x_min) / 2.0 * self.ratio
+        half_h = (y_max - y_min) / 2.0 * self.ratio
+        bx_min = max(0,       cx - half_w)
+        bx_max = min(orig_w,  cx + half_w)
+        by_min = max(0,       cy - half_h)
+        by_max = min(orig_h,  cy + half_h)
         return bx_min, bx_max, by_min, by_max
 
-    # def _shift_bbox(self, x_min, x_max, y_min, y_max, orig_h, orig_w, seed_idx=None):
-    #     """Create an off-center covering box that still fully contains the GT."""
-    #     gt_w, gt_h = x_max - x_min, y_max - y_min
+    def _shift_bbox(self, x_min, x_max, y_min, y_max, orig_h, orig_w, seed_idx=None):
+        """Create an off-center covering box that still fully contains the GT."""
+        gt_w, gt_h = x_max - x_min, y_max - y_min
 
-    #     bx_min, bx_max, by_min, by_max = self._zoom_out_bbox(
-    #         x_min, x_max, y_min, y_max, orig_h, orig_w)
+        bx_min, bx_max, by_min, by_max = self._zoom_out_bbox(
+            x_min, x_max, y_min, y_max, orig_h, orig_w)
 
-    #     box_w = bx_max - bx_min
-    #     box_h = by_max - by_min
+        box_w = bx_max - bx_min
+        box_h = by_max - by_min
 
-    #     if self.is_train:
-    #         dx = random.uniform(-box_w * self.shift_ratio, box_w * self.shift_ratio)
-    #         dy = random.uniform(-box_h * self.shift_ratio, box_h * self.shift_ratio)
-    #     else:
-    #         rng = random.Random(seed_idx or 0)
-    #         dx = rng.uniform(box_w * 0.4, box_w * 0.7) * self.shift_ratio
-    #         dy = rng.uniform(box_h * 0.1, box_h * 0.3) * self.shift_ratio
+        if self.is_train:
+            dx = random.uniform(-box_w * self.shift_ratio, box_w * self.shift_ratio)
+            dy = random.uniform(-box_h * self.shift_ratio, box_h * self.shift_ratio)
+        else:
+            rng = random.Random(seed_idx or 0)
+            dx = rng.uniform(box_w * 0.4, box_w * 0.7) * self.shift_ratio
+            dy = rng.uniform(box_h * 0.1, box_h * 0.3) * self.shift_ratio
 
-    #     bx_min = max(0,       bx_min + dx)
-    #     bx_max = min(orig_w,  bx_max + dx)
-    #     by_min = max(0,       by_min + dy)
-    #     by_max = min(orig_h,  by_max + dy)
+        bx_min = max(0,       bx_min + dx)
+        bx_max = min(orig_w,  bx_max + dx)
+        by_min = max(0,       by_min + dy)
+        by_max = min(orig_h,  by_max + dy)
 
-    #     # Shift mode must still cover the full GT, only changing its relative position inside the box.
-    #     bx_min = min(bx_min, x_min)
-    #     by_min = min(by_min, y_min)
-    #     bx_max = max(bx_max, x_max)
-    #     by_max = max(by_max, y_max)
+        # Shift mode must still cover the full GT, only changing its relative position inside the box.
+        bx_min = min(bx_min, x_min)
+        by_min = min(by_min, y_min)
+        bx_max = max(bx_max, x_max)
+        by_max = max(by_max, y_max)
 
-    #     # If clamping to image borders shrinks the shifted box, try to preserve the original box size.
-    #     if bx_max - bx_min < box_w:
-    #         if bx_min <= 0:
-    #             bx_max = min(orig_w, bx_min + box_w)
-    #         elif bx_max >= orig_w:
-    #             bx_min = max(0, bx_max - box_w)
-    #     if by_max - by_min < box_h:
-    #         if by_min <= 0:
-    #             by_max = min(orig_h, by_min + box_h)
-    #         elif by_max >= orig_h:
-    #             by_min = max(0, by_max - box_h)
+        # If clamping to image borders shrinks the shifted box, try to preserve the original box size.
+        if bx_max - bx_min < box_w:
+            if bx_min <= 0:
+                bx_max = min(orig_w, bx_min + box_w)
+            elif bx_max >= orig_w:
+                bx_min = max(0, bx_max - box_w)
+        if by_max - by_min < box_h:
+            if by_min <= 0:
+                by_max = min(orig_h, by_min + box_h)
+            elif by_max >= orig_h:
+                by_min = max(0, by_max - box_h)
 
-    #     return bx_min, bx_max, by_min, by_max
+        return bx_min, bx_max, by_min, by_max
 
     def create_plateau_heatmap(self, bbox, orig_h, orig_w):
         heatmap = np.zeros((orig_h, orig_w), dtype=np.float32)
@@ -199,7 +195,11 @@ class PromptSegmentationDataset(Dataset):
         x_max, y_max = np.max(points, axis=0)
 
         # Select the prompt box according to the configured prompt mode.
-        if self.prompt_mode == 'zoom_out':
+        if self.prompt_mode == 'random':
+            bx_min, bx_max, by_min, by_max = self._random_zoom_out_bbox(
+                x_min, x_max, y_min, y_max, orig_h, orig_w)
+            
+        elif self.prompt_mode == 'zoom_out':
             bx_min, bx_max, by_min, by_max = self._zoom_out_bbox(
                 x_min, x_max, y_min, y_max, orig_h, orig_w)
 
