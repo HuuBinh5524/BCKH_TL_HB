@@ -11,9 +11,9 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from dataset import PromptSegmentationDataset
+from collections import defaultdict
 from models.networks.pga_unet_2D import PGA_UNet
-from metrics import dice_loss, calculate_batch_metrics, calculate_cbl
-
+from metrics import dice_loss, compute_image_level_metrics
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -126,40 +126,41 @@ def main():
         val_pre  = 0.0
         val_rec  = 0.0
 
-        val_loop = tqdm(val_loader, desc=f"Epoch {epoch+1}/{args.epochs} [Val]", leave=False)
+        val_image_groups = defaultdict(lambda: {'preds': [], 'gts': []})
 
         with torch.no_grad():
-            for images, masks, prompts in val_loop:
-                images, masks, prompts = images.to(device), masks.to(device), prompts.to(device)
+            for batch_idx, (images, masks, prompts) in enumerate(tqdm(val_loader, desc=f"Epoch {epoch+1}/{args.epochs} [Val]")):
+                images = images.to(device)
+                masks = masks.to(device)
+                prompts = prompts.to(device)
 
-                # Forward pass
-                preds = model(images, prompts)
+                preds_logits = model(images, prompts)
+                preds_prob = torch.sigmoid(preds_logits)
 
-                # Tính Val Loss
-                v_loss = criterion_bce(preds, masks) + dice_loss(preds, masks)
-                val_loss += v_loss.item()
+                batch_sz = images.size(0)
 
-                # Tính Metrics
-                dice, iou, pre, rec = calculate_batch_metrics(preds, masks)
-                val_dice += dice
-                val_iou  += iou
-                val_pre  += pre
-                val_rec  += rec
+                for i in range(batch_sz):
 
-                val_loop.set_postfix({
-                    'loss': f"{v_loss.item():.4f}",
-                    'dice': f"{dice:.4f}",
-                    'iou': f"{iou:.4f}"
-                })
+                    # Dataset hiện tại lưu:
+                    # all_samples[sample_idx] = (image_name, polygon_index)
+                    sample_idx = batch_idx * val_loader.batch_size + i
 
-        num_val_batches = len(val_loader)
-        val_results = {
-            'loss': val_loss / num_val_batches,
-            'dice': val_dice / num_val_batches,
-            'iou': val_iou / num_val_batches,
-            'precision': val_pre / num_val_batches,
-            'recall': val_rec / num_val_batches
-        }
+                    image_name, polygon_idx = val_ds.all_samples[sample_idx]
+
+                    # Lưu prediction của polygon
+                    val_image_groups[image_name]['preds'].append(
+                        preds_prob[i:i+1].cpu()
+                    )
+
+                    # Lưu GT của polygon
+                    val_image_groups[image_name]['gts'].append(
+                        masks[i:i+1].cpu()
+                    )
+
+        val_results = compute_image_level_metrics(
+            val_image_groups,
+            threshold=0.5
+        )
 
         # 3. Learning Rate Scheduler & Logging
         primary_dice = val_results['dice']

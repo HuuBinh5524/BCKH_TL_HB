@@ -137,34 +137,14 @@ def main():
     logger.info("🏆 KẾT QUẢ ĐÁNH GIÁ CẤP ĐỘ ẢNH")
     logger.info("=" * 60)
 
-    logger.info(
-        f"📸 Tổng số ảnh evaluated : {results['num_images']}"
-    )
+    logger.info(f"📸 Tổng số ảnh evaluated : {results['num_images']}")
 
-    logger.info(
-        f"🎯 Dice            : {results['dice']:.4f}"
-    )
-
-    logger.info(
-        f"📐 IoU             : {results['iou']:.4f}"
-    )
-
-    logger.info(
-        f"🔍 Precision       : {results['precision']:.4f}"
-    )
-
-    logger.info(
-        f"📢 Recall          : {results['recall']:.4f}"
-    )
-
-    logger.info(
-        f"📏 HD95            : {results['hd95']:.4f} pixels"
-    )
-
-    logger.info(
-        f"🎯 CBL             : {results['cbl']:.4f}"
-    )
-
+    logger.info(f"🎯 Dice            : {results['dice']:.4f}")
+    logger.info(f"📐 IoU             : {results['iou']:.4f}")
+    logger.info(f"🔍 Precision       : {results['precision']:.4f}")
+    logger.info(f"📢 Recall          : {results['recall']:.4f}")
+    logger.info(f"📏 HD95            : {results['hd95']:.4f} pixels")
+    logger.info(f"🎯 CBL             : {results['cbl']:.4f}")
     logger.info("=" * 60)
 
 if __name__ == "__main__":
