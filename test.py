@@ -62,7 +62,7 @@ def main():
     logger = setup_logger(args.output_dir)
 
     logger.info("=" * 60)
-    logger.info(f"🚀 Bắt đầu đánh giá mô hình PGA-UNet (Cấp độ ảnh - Image Level)")
+    logger.info(f"🚀 Bắt đầu đánh giá mô hình (Cấp độ ảnh - Image Level)")
     logger.info(f"📂 Checkpoint: {args.checkpoint}")
     logger.info(f"📂 Dataset Path: {args.dataset_path}")
     logger.info(f"🎯 Prompt Mode: {args.prompt_mode} | Threshold: {args.threshold}")
@@ -96,8 +96,6 @@ def main():
     # 3. Tiến hành suy luận theo cấp ảnh (Image-level Grouping)
     image_groups = defaultdict(lambda: {'preds': [], 'gts': []})
 
-    logger.info("\n🔄 Đang chạy Inference trên tập test...")
-
     with torch.no_grad():
         for batch_idx, (images, masks, prompts) in enumerate(tqdm(test_loader, desc="[Inference]")):
             images = images.to(DEVICE)
@@ -123,21 +121,15 @@ def main():
                     masks[i:i+1].cpu()
                 )
 
-    logger.info(f"✅ Hoàn thành inference. Tổng số ảnh: {len(image_groups)}")
-
     # 4. Đánh giá theo Cấp độ Ảnh
-    logger.info("\n📊 Đang tính metrics cấp độ ảnh...")
-
     results = compute_image_level_metrics(
         image_groups,
         threshold=args.threshold
     )
 
     logger.info("\n" + "=" * 60)
-    logger.info("🏆 KẾT QUẢ ĐÁNH GIÁ CẤP ĐỘ ẢNH")
+    logger.info(f"🏆 KẾT QUẢ ĐÁNH GIÁ CẤP ĐỘ ẢNH ({results['num_images']} ẢNH)")
     logger.info("=" * 60)
-
-    logger.info(f"📸 Tổng số ảnh evaluated : {results['num_images']}")
 
     logger.info(f"🎯 Dice            : {results['dice']:.4f}")
     logger.info(f"📐 IoU             : {results['iou']:.4f}")
