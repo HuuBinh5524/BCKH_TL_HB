@@ -166,7 +166,7 @@ def main():
         primary_dice = val_results['dice']
         scheduler.step(primary_dice)
 
-        log_str = (f"Epoch {epoch+1}/{args.epochs} | "
+        log_str = (f"Epoch {epoch+1} |"
                    f"Train_loss: {train_loss_avg:.4f} | "
                    f"Val_loss: {val_loss_avg:.4f} | "
                    f"Dice: {val_results['dice']:.4f} | "
@@ -175,7 +175,7 @@ def main():
                    f"Rec: {val_results['recall']:.4f} | "
                    f"HD95: {val_results['hd95']:.4f} | "
                    f"CBL: {val_results['cbl']:.4f} | "
-                   f"LR: {optimizer.param_groups[0]['lr']:.1e}")
+                   f"LR: {optimizer.param_groups[0]['lr']:.1e}\n")
 
         # Save last checkpoint
         torch.save(model.state_dict(), f"{ckpt_prefix}_last.pth")
